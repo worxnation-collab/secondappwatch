@@ -14,11 +14,25 @@ haptics as the feature:
 | Combo *N* (N ≥ 2) | *N* quick `click`s, then `directionUp`. Count them and you know your streak |
 | Wrong answer or time out | `retry`. Soft on purpose: a miss shows a teach line, it doesn't buzz at you |
 | Round over | `stop` |
+| Crown mode: a side arms | `click` |
+
+## Answering with the Digital Crown
+
+Flip **Answer with the Crown** on the start screen. Turn the crown up for True,
+down for False. Past halfway the side **arms** (a click, and the label lights),
+and turning on to the end stop **answers**. Ease back toward the middle first
+and it disarms, so a nudge while you're reading never answers anything. The
+click-then-stop is what makes it answerable without looking. Tapping still
+works in this mode.
+
+The arming and commit rules are `CrownDial` in RoundCore, with hysteresis so
+a thumb resting on the threshold doesn't chatter. It's tested the same way the
+clock is.
 
 ## Layout
 
 ```
-RoundCore/     Swift package, Foundation only: engine, scoring, cue patterns, deck, tests
+RoundCore/     Swift package, Foundation only: engine, scoring, cue patterns, crown dial, deck, tests
 App/           SwiftUI watch app: views, a 10Hz clock, Pulse -> WKHapticType
 project.yml    XcodeGen spec (the .xcodeproj is generated, not committed)
 ```

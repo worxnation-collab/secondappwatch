@@ -9,6 +9,7 @@ final class RoundModel: ObservableObject {
 
     @Published private(set) var engine: RoundEngine
     @Published private(set) var remaining: TimeInterval = 0
+    @Published private(set) var dial = CrownDial()
     private var timer: Timer?
 
     init() { engine = RoundModel.freshEngine() }
@@ -24,6 +25,16 @@ final class RoundModel: ObservableObject {
     func answer(_ guess: Bool) { run { $0.answer(guess, at: now) } }
     func next() { run { $0.next(at: now) } }
 
+    /// Every Digital Crown reading while a question is up.
+    func crown(_ value: Double) {
+        guard case .asking = engine.phase else { return }
+        switch dial.update(value) {
+        case .armed?: Haptics.play(.click)
+        case .committed(let guess)?: answer(guess)
+        case .disarmed?, nil: break
+        }
+    }
+
     func playAgain() {
         stopClock()
         engine = RoundModel.freshEngine()
@@ -36,6 +47,7 @@ final class RoundModel: ObservableObject {
 
     private func run(_ step: (inout RoundEngine) -> [Cue]) {
         let cues = step(&engine)
+        if cues.contains(.questionStart) { dial.reset() }
         Haptics.play(cues)
         syncClock()
     }

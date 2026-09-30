@@ -17,6 +17,9 @@ enum Haptics {
         }
     }
 
+    /// A single tap outside the round's cues (the crown's arm click).
+    static func play(_ pulse: Pulse) { fire(pulse) }
+
     private static func fire(_ pulse: Pulse) {
         #if os(watchOS)
         WKInterfaceDevice.current().play(pulse.hapticType)
