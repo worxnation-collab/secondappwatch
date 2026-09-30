@@ -15,10 +15,11 @@ final class RunModel: ObservableObject {
     private var engine: WorkoutEngine
     private var timer: Timer?
 
-    init(workout: Workout, health: HealthSession, seed: UInt64 = UInt64(Date().timeIntervalSince1970 * 1000)) {
+    init(workout: Workout, health: HealthSession, mine: [Combo] = [],
+         seed: UInt64 = UInt64(Date().timeIntervalSince1970 * 1000)) {
         self.workout = workout
         self.health = health
-        engine = WorkoutEngine(workout: workout, seed: seed)
+        engine = WorkoutEngine(workout: workout, seed: seed, mine: mine)
         status = engine.status(at: 0)
     }
 

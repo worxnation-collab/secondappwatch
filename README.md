@@ -11,29 +11,42 @@ A 1-2 is two quick clicks and a "go"; a 1-2-3-2 is four.
 
 ## What it does
 
-- **Home.** A Boxing / Muay Thai toggle and the workouts for each. Every row
-  shows the total time, counting only the rests *between* rounds:
-  2 × 2:00 + 1 × 0:30 = **4:30**. Durations always show seconds (`0:30`, `5:00`),
-  never `0m` or `5m`.
+The watch app is **boxing only**, done properly. Muay Thai (teep, kicks, knees,
+elbows, kick countdowns, its own default workout) is fully built and tested in
+RoundCore and is one filter away from coming back to the UI. It's held back so
+the watch shows one discipline with nothing half-finished.
 
-  | Workout | Discipline | Rounds | Rest | Intensity | Total |
+- **Home.** The boxing workouts and **My Combos**. Every row shows the total
+  time, counting only the rests *between* rounds:
+  2 × 2:00 + 1 × 0:30 = **4:30**. Durations always show seconds (`0:30`,
+  `5:00`), never `0m` or `5m`.
+
+  | Workout | Style | Rounds | Rest | Intensity | Total |
   |---|---|---|---|---|---|
-  | Speed Demon | Boxing | 2 × 2:00 | 0:30 | High | 4:30 |
-  | Creative Flow | Boxing, numbered combos with slips and rolls | 3 × 2:00 | 0:30 | Medium | 7:00 |
-  | Eight Limbs | Muay Thai, kicks, knees and elbows | 3 × 3:00 | 1:00 | Medium | 11:00 |
+  | Speed Demon | Called by name, with a punch countdown | 2 × 2:00 | 0:30 | High | 4:30 |
+  | Creative Flow | Numbered: body shots and defense mixed in | 3 × 2:00 | 0:30 | Medium | 7:00 |
 
-- **Settings, on the watch.** Rounds, work time, rest time, intensity, and
-  punch / kick countdowns. Each value is a Picker, which on watchOS opens a list
-  you scroll with the Digital Crown. Edits are saved.
+- **The moves.** Punches 1–6; body shots 1B–4B; evasions slip, roll, duck, pull
+  and parry; and a pivot to get out.
+- **Settings, on the watch.** Each value is a Picker, which on watchOS opens a
+  list you scroll with the Digital Crown. Edits are saved.
+  - Rounds, work time and rest time.
   - **Intensity** is combo frequency *and* length. Low calls 1–2 moves every
     6 s, Medium 2–3 every 4.5 s, High 2–4 every 3 s.
-  - **A countdown** turns a round's last 10 seconds into a drill: one punch (or
-    kick) per second, counted down on screen and tapped on the wrist. Muay Thai
-    with both switched on alternates rounds: punches, then kicks.
+  - **Combos** comes from the generator or from My Combos.
+  - **Defense** and **Body shots** switch those moves on in generated combos.
+  - **Call as** numbers (`1-3B-2`) or names (`JAB-BODY HOOK-CROSS`).
+  - **A punch countdown** turns a round's last 10 seconds into one punch per
+    second, counted down on screen and tapped on the wrist.
+- **My Combos.** Build your own on the watch: tap moves in order, **Feel it**
+  to get the exact taps a round will give you, then save. Tap any saved combo to
+  feel it again. Set a workout's Combos to "My combos" and the round calls
+  yours, in random order, never the same one twice in a row. The app starts you
+  with 1-2, 1-1-2 and 1-2-3-2.
 - **The run.** Round number, a big countdown ring, WORK / REST, live heart rate
-  and calories, and the current combo in large type: `1-2-3`, `JAB-CROSS-HOOK`,
-  `TEEP`, `RIGHT KICK`. Swipe right for Pause / End, as in Apple's Workout app.
-  There's no close button, so a sweaty palm can't end a round.
+  and calories, and the current combo in large type: `1-2-3`,
+  `JAB-CROSS-HOOK`, `1-3B-2-PIVOT`. Swipe right for Pause / End, as in Apple's
+  Workout app. There's no close button, so a sweaty palm can't end a round.
 
 ## Haptics are the feature
 
@@ -41,7 +54,7 @@ A 1-2 is two quick clicks and a "go"; a 1-2-3-2 is four.
 |---|---|
 | Last 3 s of the get-ready, and of every rest | `.click` × 3 (one per second), then… |
 | Round start | `.start` |
-| A combo is called | one `.click` per move, 0.14 s apart, then `.directionUp` ("go") |
+| A combo is called | one `.click` per move (defense and the pivot included, since they're beats of the combo), 0.14 s apart, then `.directionUp` ("go") |
 | 10 s left in the round | `.notification` |
 | Countdown drill (if on) | `.click` each second, 9 → 1 |
 | Bell (end of round) | `.stop` |
@@ -72,14 +85,16 @@ nothing.
 
 ```
 RoundCore/                 Swift package, Foundation only. Builds and tests on Linux.
-  Moves.swift              The moves library: punches 1–6, slip/roll, teep, kicks, knee, elbow
-  ComboGenerator.swift     Seeded combo builder (by discipline + intensity)
+  Moves.swift              The moves library: punches 1–6, body 1B–4B, slip/roll/duck/pull/parry, pivot,
+                           and Muay Thai's teep, kicks, knee, elbow
+  ComboGenerator.swift     Seeded combo builder (discipline, intensity, defense, body shots), or your own combos
   SeededRandom.swift       SplitMix64, so a seed means the same combos on every platform
   Workout.swift            Workout settings, the defaults, duration math and formatting
   Cue.swift                Cues → haptic patterns (Pulse + timing), as data
   WorkoutPlan.swift        The whole workout written out: segments + every cue, timestamped
   WorkoutEngine.swift      A state machine that walks the plan against an injected clock
-App/                       SwiftUI watch app: screens, a 10 Hz driver, HealthKit, Pulse → WKHapticType
+App/                       SwiftUI watch app: screens, the combo builder, a 10 Hz driver, HealthKit,
+                           Pulse → WKHapticType
 project.yml                XcodeGen spec (the .xcodeproj is generated, not committed)
 ```
 
@@ -100,15 +115,29 @@ be thrown.
 
 **The combo rules are ones a coach would give**, and each is a test:
 
-- Punches alternate hands. The one exception is the double jab, 1-1.
-- Slips and rolls are never first, never last, and never twice in a row.
-- A Muay Thai combo always lands a kick, knee, elbow or teep. A kick goes off
-  the side opposite the last punch: 1-2 → LEFT KICK, 1 → RIGHT KICK.
+- Punches alternate hands. The one exception is the double jab: 1-1, or 1-1B.
+- Body shots are only 1B–4B, only in boxing, and only when switched on.
+- Evasions (slip, roll, duck, pull, parry) are never first, never last, and
+  never twice in a row.
+- A pivot only ever ends a combo, and never straight after an evasion.
+- In Muay Thai (core only), a combo always lands a kick, knee, elbow or teep. A
+  kick goes off the side opposite the last punch: 1-2 → LEFT KICK,
+  1 → RIGHT KICK.
+- Your own combos are drawn at random but never twice in a row. With none
+  saved, a "My combos" workout generates instead of going silent.
 
-**Tests.** `swift test` runs 39 tests covering the moves and callouts, the
-duration math and formatting, the defaults, combo generation (determinism,
-pinned sequences, the rules above, library coverage), the exact timelines, the
-cue patterns, and the engine (full walk, catch-up, pause, end early, status).
+Boxing's numbers are stance-relative (1 is always the jab, whichever hand
+leads), so a southpaw needs no setting. The numbers and the taps are the same.
+
+**Tests.** `swift test` runs 47 tests covering:
+
+- the moves, body shots and callouts;
+- the duration math and formatting;
+- the defaults, and loading a workout saved by an older build;
+- combo generation: determinism, pinned sequences, the rules above, library
+  coverage, and My Combos;
+- the exact timelines and the cue patterns;
+- the engine: full walk, catch-up, pause, end early and status.
 
 ## Run it
 

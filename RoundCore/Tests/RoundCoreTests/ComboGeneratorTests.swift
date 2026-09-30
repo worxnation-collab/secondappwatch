@@ -2,8 +2,9 @@ import XCTest
 @testable import RoundCore
 
 final class ComboGeneratorTests: XCTestCase {
-    private func combos(_ d: Discipline, _ i: Intensity, defense: Bool = false, seed: UInt64 = 42, count: Int = 400) -> [Combo] {
-        var g = ComboGenerator(discipline: d, intensity: i, defense: defense, seed: seed)
+    private func combos(_ d: Discipline, _ i: Intensity, defense: Bool = false, body: Bool = false,
+                        seed: UInt64 = 42, count: Int = 400) -> [Combo] {
+        var g = ComboGenerator(discipline: d, intensity: i, defense: defense, bodyShots: body, seed: seed)
         return (0..<count).map { _ in g.next() }
     }
 
@@ -33,14 +34,14 @@ final class ComboGeneratorTests: XCTestCase {
     func testMovesComeFromTheDisciplinesLibrary() {
         for d in Discipline.allCases {
             let lib = Set(Move.library(for: d))
-            for c in combos(d, .high, defense: true) {
+            for c in combos(d, .high, defense: true, body: true) {
                 XCTAssertTrue(Set(c.moves).isSubset(of: lib), c.callout(.names))
             }
         }
     }
 
     func testTheWholeLibraryGetsUsed() {
-        let boxing = Set(combos(.boxing, .high, defense: true, count: 1000).flatMap(\.moves))
+        let boxing = Set(combos(.boxing, .high, defense: true, body: true, count: 1000).flatMap(\.moves))
         XCTAssertEqual(boxing, Set(Move.library(for: .boxing)))
         let thai = Set(combos(.muayThai, .low, count: 500).flatMap(\.moves)
                        + combos(.muayThai, .high, count: 500).flatMap(\.moves))
@@ -49,27 +50,47 @@ final class ComboGeneratorTests: XCTestCase {
 
     func testPunchesAlternateHandsExceptTheDoubleJab() {
         var sawDoubleJab = false
-        for c in combos(.boxing, .high, defense: true, count: 1000) {
+        for c in combos(.boxing, .high, defense: true, body: true, count: 1000) {
             for (a, b) in zip(c.moves, c.moves.dropFirst()) {
                 guard let ha = a.hand, let hb = b.hand else { continue }
-                if a == .jab && b == .jab { sawDoubleJab = true; continue }
+                if a.headVersion == .jab && b.headVersion == .jab { sawDoubleJab = true; continue }
                 XCTAssertNotEqual(ha, hb, c.callout(.numbers))
             }
         }
         XCTAssertTrue(sawDoubleJab)
     }
 
-    func testDefenseIsNeverFirstLastOrDoubled() {
-        var sawDefense = false
-        for c in combos(.boxing, .high, defense: true, count: 1000) {
-            XCTAssertEqual(c.moves.first?.kind, .punch)
-            XCTAssertEqual(c.moves.last?.kind, .punch)
+    func testEvasionsLiveInsideACombo() {
+        var saw = Set<Move>()
+        for c in combos(.boxing, .high, defense: true, body: true, count: 2000) {
+            XCTAssertEqual(c.moves.first?.kind, .punch, c.callout(.numbers))
+            XCTAssertNotEqual(c.moves.last?.kind, .defense, c.callout(.numbers))
             for (a, b) in zip(c.moves, c.moves.dropFirst()) where a.kind == .defense {
-                sawDefense = true
-                XCTAssertNotEqual(b.kind, .defense)
+                saw.insert(a)
+                XCTAssertNotEqual(b.kind, .defense, c.callout(.numbers))
+                XCTAssertNotEqual(b, .pivot, "dodging straight into walking away: \(c.callout(.numbers))")
             }
         }
-        XCTAssertTrue(sawDefense)
+        XCTAssertEqual(saw, [.slip, .roll, .duck, .pull, .parry])
+    }
+
+    func testPivotOnlyEndsACombo() {
+        var sawPivot = false
+        for c in combos(.boxing, .high, defense: true, count: 2000) {
+            for (i, m) in c.moves.enumerated() where m == .pivot {
+                sawPivot = true
+                XCTAssertEqual(i, c.moves.count - 1, c.callout(.numbers))
+            }
+        }
+        XCTAssertTrue(sawPivot)
+    }
+
+    func testBodyShotsAreOneToFourAndOnlyWhenOn() {
+        let on = combos(.boxing, .high, body: true, count: 1000).flatMap(\.moves)
+        XCTAssertEqual(Set(on.filter(\.isBody)), [.bodyJab, .bodyCross, .bodyHook, .bodyRearHook])
+        XCTAssertFalse(combos(.boxing, .high, body: false).flatMap(\.moves).contains { $0.isBody })
+        XCTAssertFalse(combos(.muayThai, .high, body: true).flatMap(\.moves).contains { $0.isBody },
+                       "body shots are a boxing option")
     }
 
     func testNoDefenseWhenItsOff() {
@@ -93,6 +114,32 @@ final class ComboGeneratorTests: XCTestCase {
         let kinds = Set((0..<100).flatMap { _ in g.next().moves.map(\.kind) })
         XCTAssertTrue(kinds.contains(.kick))
         XCTAssertTrue(kinds.contains(.knee))
+    }
+
+    func testMyCombosAreDrawnWithoutImmediateRepeats() {
+        let mine = [Combo([.jab, .cross]), Combo([.jab, .jab, .cross]), Combo([.leadHook, .cross, .pivot])]
+        var g = ComboGenerator(discipline: .boxing, intensity: .high, mine: mine, seed: 5)
+        let drawn = (0..<300).map { _ in g.next() }
+        XCTAssertEqual(Set(drawn), Set(mine), "only yours, and all of yours")
+        for (a, b) in zip(drawn, drawn.dropFirst()) { XCTAssertNotEqual(a, b) }
+
+        var one = ComboGenerator(discipline: .boxing, intensity: .high, mine: [mine[0]], seed: 5)
+        XCTAssertEqual((0..<5).map { _ in one.next() }, Array(repeating: mine[0], count: 5))
+    }
+
+    func testMyCombosOnlyWhenTheWorkoutAsks() {
+        var w = Workout.defaults[0]
+        let mine = [Combo([.rearUppercut])]
+        w.comboSource = .generated
+        var gen = ComboGenerator(workout: w, mine: mine, seed: 1)
+        XCTAssertTrue((0..<50).contains { _ in gen.next() != mine[0] })
+
+        w.comboSource = .mine
+        var yours = ComboGenerator(workout: w, mine: mine, seed: 1)
+        XCTAssertEqual(yours.next(), mine[0])
+
+        var none = ComboGenerator(workout: w, mine: [], seed: 1)
+        XCTAssertTrue((1...4).contains(none.next().moves.count), "no combos built yet: generate instead")
     }
 
     func testRandomIsUnbiasedEnough() {

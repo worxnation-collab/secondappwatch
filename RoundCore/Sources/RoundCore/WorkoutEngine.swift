@@ -54,8 +54,8 @@ public struct WorkoutEngine: Sendable {
     private var endedAt: TimeInterval?
     private var nextCue = 0
 
-    public init(workout: Workout, seed: UInt64) {
-        plan = WorkoutPlan(workout: workout, seed: seed)
+    public init(workout: Workout, seed: UInt64, mine: [Combo] = []) {
+        plan = WorkoutPlan(workout: workout, seed: seed, mine: mine)
     }
 
     public mutating func start(at now: TimeInterval) -> [Cue] {

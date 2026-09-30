@@ -5,7 +5,9 @@ import Foundation
 ///
 /// The rules are the ones a coach would give, and each one is tested:
 /// - Punches alternate hands. The one exception is the double jab (1-1).
-/// - Defense (slip, roll) is never first, never last, never twice in a row.
+/// - Body shots are only ever 1B–4B, and only in boxing.
+/// - Evasions (slip, roll, duck, pull, parry) are never first, never last,
+///   never twice in a row. A pivot only ever ENDS a combo: it's how you leave.
 /// - Muay Thai combos always land a kick, knee, elbow or teep, and a kick goes
 ///   off the OPPOSITE side to the last punch (1-2 → LEFT KICK, 1 → RIGHT
 ///   KICK), because that's the side your weight is already loaded on.
@@ -13,21 +15,33 @@ public struct ComboGenerator: Sendable {
     public let discipline: Discipline
     public let intensity: Intensity
     public let defense: Bool
+    public let bodyShots: Bool
+    /// When non-empty, combos are drawn from here instead of generated.
+    public let mine: [Combo]
     private var rng: SeededRandom
+    private var lastMine: Int?
 
-    public init(discipline: Discipline, intensity: Intensity, defense: Bool = false, seed: UInt64) {
+    public init(discipline: Discipline, intensity: Intensity, defense: Bool = false,
+                bodyShots: Bool = false, mine: [Combo] = [], seed: UInt64) {
         self.discipline = discipline
         self.intensity = intensity
         self.defense = defense
+        self.bodyShots = bodyShots
+        self.mine = mine
         rng = SeededRandom(seed: seed)
     }
 
-    public init(workout: Workout, seed: UInt64) {
+    /// `mine` is only used when the workout asks for it; an empty list falls
+    /// back to generating, so a workout set to "My combos" still calls combos
+    /// before you've built any.
+    public init(workout: Workout, mine: [Combo] = [], seed: UInt64) {
         self.init(discipline: workout.discipline, intensity: workout.intensity,
-                  defense: workout.defense, seed: seed)
+                  defense: workout.defense, bodyShots: workout.bodyShots,
+                  mine: workout.comboSource == .mine ? mine : [], seed: seed)
     }
 
     public mutating func next() -> Combo {
+        if !mine.isEmpty { return nextOfMine() }
         let length = rng.int(in: intensity.comboLength)
         switch discipline {
         case .boxing: return boxing(length: length)
@@ -35,14 +49,32 @@ public struct ComboGenerator: Sendable {
         }
     }
 
+    /// A random one of your combos, never the same one twice in a row.
+    private mutating func nextOfMine() -> Combo {
+        var i = rng.int(below: mine.count)
+        if mine.count > 1, i == lastMine { i = (i + 1 + rng.int(below: mine.count - 1)) % mine.count }
+        lastMine = i
+        return mine[i]
+    }
+
     // MARK: Boxing
 
     private mutating func boxing(length: Int) -> Combo {
         var moves = punches(count: length)
-        // Defense slots into the middle of a combo of three or more.
+        if bodyShots {
+            for i in moves.indices {
+                if let body = moves[i].bodyVersion, rng.chance(20) { moves[i] = body }
+            }
+        }
+        // Defense slots into the middle of a combo of three or more…
         if defense, length >= 3, rng.chance(40) {
             let slot = rng.int(in: 1...(length - 2))
-            moves[slot] = rng.chance(50) ? .slip : .roll
+            moves[slot] = rng.weighted([(.slip, 30), (.roll, 25), (.duck, 15), (.pull, 15), (.parry, 15)])
+        }
+        // …and a pivot can take the last beat, unless it would follow an
+        // evasion (dodging straight into walking away isn't a combo).
+        if defense, length >= 3, moves[length - 2].kind != .defense, rng.chance(20) {
+            moves[length - 1] = .pivot
         }
         return Combo(moves)
     }

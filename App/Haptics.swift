@@ -18,6 +18,9 @@ enum Haptics {
         }
     }
 
+    /// One tap on its own: the combo builder's key click.
+    static func tap() { fire(.click) }
+
     private static func fire(_ pulse: Pulse) {
         #if os(watchOS)
         WKInterfaceDevice.current().play(pulse.hapticType)

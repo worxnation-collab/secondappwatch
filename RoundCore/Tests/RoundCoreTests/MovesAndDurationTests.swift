@@ -7,22 +7,44 @@ final class MovesTests: XCTestCase {
         XCTAssertEqual((1...6).map { Move.punch($0).hand }, [.lead, .rear, .lead, .rear, .lead, .rear])
         XCTAssertNil(Move.slip.number)
         XCTAssertNil(Move.teep.hand)
+        XCTAssertNil(Move.pivot.hand)
+    }
+
+    func testBodyShots() {
+        XCTAssertEqual((1...6).map { Move.punch($0).bodyVersion?.code }, ["1B", "2B", "3B", "4B", nil, nil])
+        for m in Move.allCases where m.isBody {
+            XCTAssertEqual(m.headVersion.bodyVersion, m)
+            XCTAssertEqual(m.hand, m.headVersion.hand)
+            XCTAssertEqual(m.kind, .punch)
+        }
     }
 
     func testCallouts() {
         XCTAssertEqual(Combo([.jab, .cross, .leadHook]).callout(.numbers), "1-2-3")
         XCTAssertEqual(Combo([.jab, .cross, .leadHook]).callout(.names), "JAB-CROSS-HOOK")
         XCTAssertEqual(Combo([.jab, .cross, .slip, .cross]).callout(.numbers), "1-2-SLIP-2")
+        XCTAssertEqual(Combo([.jab, .bodyHook, .cross, .pivot]).callout(.numbers), "1-3B-2-PIVOT")
+        XCTAssertEqual(Combo([.bodyJab, .cross]).callout(.names), "BODY JAB-CROSS")
         XCTAssertEqual(Combo([.teep]).callout(.numbers), "TEEP")
         XCTAssertEqual(Combo([.rightKick]).callout(.names), "RIGHT KICK")
     }
 
     func testLibraries() {
-        XCTAssertEqual(Set(Move.library(for: .boxing)),
-                       [.jab, .cross, .leadHook, .rearHook, .leadUppercut, .rearUppercut, .slip, .roll])
+        XCTAssertEqual(Set(Move.library(for: .boxing)), [
+            .jab, .cross, .leadHook, .rearHook, .leadUppercut, .rearUppercut,
+            .bodyJab, .bodyCross, .bodyHook, .bodyRearHook,
+            .slip, .roll, .duck, .pull, .parry, .pivot,
+        ])
         let thai = Set(Move.library(for: .muayThai))
         XCTAssertTrue(thai.isSuperset(of: [.teep, .leftKick, .rightKick, .knee, .elbow, .jab, .cross]))
         XCTAssertFalse(thai.contains(.slip))
+        XCTAssertFalse(thai.contains(.bodyJab))
+    }
+
+    func testCombosRoundTripAndRejectEmpty() throws {
+        let c = Combo([.jab, .bodyHook, .pivot])
+        XCTAssertEqual(try JSONDecoder().decode(Combo.self, from: JSONEncoder().encode(c)), c)
+        XCTAssertThrowsError(try JSONDecoder().decode(Combo.self, from: Data(#"{"moves":[]}"#.utf8)))
     }
 }
 
@@ -78,6 +100,8 @@ final class DefaultsTests: XCTestCase {
         XCTAssertEqual([flow.rounds, flow.work, flow.rest], [3, 120, 30])
         XCTAssertEqual(flow.intensity, .medium)
         XCTAssertEqual(flow.callout, .numbers)
+        XCTAssertTrue(flow.defense)
+        XCTAssertTrue(flow.bodyShots)
 
         XCTAssertEqual(Workout.defaults.filter { $0.discipline == .muayThai }.count, 1)
         XCTAssertEqual(Set(Workout.defaults.map(\.id)).count, Workout.defaults.count)
@@ -95,6 +119,15 @@ final class DefaultsTests: XCTestCase {
         boxing.punchCountdown = false
         boxing.kickCountdown = true
         XCTAssertNil(boxing.countdownDrill(round: 1), "boxing has no kicks to count")
+    }
+
+    func testAWorkoutSavedByAnOlderBuildStillLoads() throws {
+        // What 0.1 wrote: no bodyShots, no comboSource.
+        let old = #"{"id":"speed-demon","name":"Speed Demon","discipline":"boxing","rounds":4,"work":90,"rest":45,"intensity":"low","callout":"names","defense":false,"punchCountdown":true,"kickCountdown":false}"#
+        let w = try JSONDecoder().decode(Workout.self, from: Data(old.utf8))
+        XCTAssertEqual([w.rounds, w.work, w.rest], [4, 90, 45], "the edits survive")
+        XCTAssertFalse(w.bodyShots)
+        XCTAssertEqual(w.comboSource, .generated)
     }
 
     func testWorkoutsRoundTripThroughJSON() throws {

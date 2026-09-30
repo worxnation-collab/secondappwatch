@@ -9,8 +9,8 @@ struct RunView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var page = 1
 
-    init(workout: Workout, health: HealthSession) {
-        _model = StateObject(wrappedValue: RunModel(workout: workout, health: health))
+    init(workout: Workout, health: HealthSession, mine: [Combo]) {
+        _model = StateObject(wrappedValue: RunModel(workout: workout, health: health, mine: mine))
     }
 
     var body: some View {

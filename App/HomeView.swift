@@ -1,61 +1,61 @@
 import SwiftUI
 import RoundCore
 
+enum Route: Hashable {
+    case workout(String)
+    case myCombos
+    case buildCombo
+}
+
+/// Boxing only, for now. Muay Thai is fully built in RoundCore (moves, rules,
+/// kick countdowns, its default workout, tests) and is one filter away from
+/// coming back; the watch shows one discipline, done properly.
 struct HomeView: View {
     @EnvironmentObject private var store: WorkoutStore
     @EnvironmentObject private var health: HealthSession
-    @AppStorage("discipline") private var discipline: Discipline = .boxing
 
     var body: some View {
         NavigationStack {
             List {
-                DisciplineToggle(selection: $discipline)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+                HStack(spacing: 6) {
+                    Image(systemName: Discipline.boxing.symbol).font(.system(size: 16, weight: .bold))
+                    Text("BOXING").font(.rounded(14, .heavy))
+                }
+                .foregroundStyle(Theme.gradient)
+                .listRowBackground(Color.clear)
 
-                ForEach(store.workouts(for: discipline)) { workout in
-                    NavigationLink(value: workout.id) {
+                ForEach(store.workouts(for: .boxing)) { workout in
+                    NavigationLink(value: Route.workout(workout.id)) {
                         WorkoutRow(workout: workout)
                     }
                     .listRowBackground(Theme.panel.clipShape(RoundedRectangle(cornerRadius: 14)))
                 }
+
+                NavigationLink(value: Route.myCombos) {
+                    HStack {
+                        Image(systemName: "hand.raised.fingers.spread.fill").foregroundStyle(Theme.pink)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("My Combos").font(.rounded(15, .heavy))
+                            Text("\(store.myCombos.count) saved").font(.rounded(12, .semibold)).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .listRowBackground(Theme.panel.clipShape(RoundedRectangle(cornerRadius: 14)))
             }
             .navigationTitle("Combo Clock")
-            .navigationDestination(for: String.self) { id in
-                if let workout = store.workouts.first(where: { $0.id == id }) {
-                    WorkoutSettingsView(workout: workout)
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .workout(let id):
+                    if let workout = store.workouts.first(where: { $0.id == id }) {
+                        WorkoutSettingsView(workout: workout)
+                    }
+                case .myCombos: MyCombosView()
+                case .buildCombo: ComboBuilderView()
                 }
             }
         }
         // Ask on the home screen, not over a running countdown.
         .task { if health.access == .unknown { await health.requestAuthorization() } }
-    }
-}
-
-private struct DisciplineToggle: View {
-    @Binding var selection: Discipline
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(Discipline.allCases, id: \.self) { d in
-                let on = d == selection
-                Button { selection = d } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: d.symbol).font(.system(size: 18, weight: .bold))
-                        Text(d.title).font(.rounded(12, .heavy)).lineLimit(1).minimumScaleFactor(0.7)
-                    }
-                    .foregroundStyle(on ? .black : .white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
-                    .background {
-                        if on { Capsule().fill(Theme.gradient) } else { Capsule().fill(Theme.panel) }
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(on ? .isSelected : [])
-            }
-        }
-        .padding(.vertical, 4)
     }
 }
 
@@ -72,7 +72,12 @@ private struct WorkoutRow: View {
                     .foregroundStyle(Theme.gradient)
             }
             Text(workout.shape).font(.rounded(12, .semibold)).foregroundStyle(.secondary)
-            IntensityBadge(intensity: workout.intensity)
+            HStack(spacing: 6) {
+                IntensityBadge(intensity: workout.intensity)
+                if workout.comboSource == .mine {
+                    Text("MINE").font(.rounded(10, .heavy)).foregroundStyle(Theme.pink)
+                }
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

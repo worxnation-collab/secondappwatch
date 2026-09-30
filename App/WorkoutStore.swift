@@ -7,9 +7,19 @@ import RoundCore
 @MainActor
 final class WorkoutStore: ObservableObject {
     private static let key = "workouts.v1"
+    private static let combosKey = "myCombos.v1"
     private let defaults: UserDefaults
 
     @Published private(set) var workouts: [Workout]
+    /// Combos you built on the watch. Starts with three classics so a
+    /// "My combos" workout has something to call the first time.
+    @Published private(set) var myCombos: [Combo]
+
+    static let starterCombos = [
+        Combo([.jab, .cross]),
+        Combo([.jab, .jab, .cross]),
+        Combo([.jab, .cross, .leadHook, .cross]),
+    ]
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -22,6 +32,29 @@ final class WorkoutStore: ObservableObject {
             loaded.append(d)
         }
         workouts = loaded
+
+        if let data = defaults.data(forKey: Self.combosKey),
+           let decoded = try? JSONDecoder().decode([Combo].self, from: data) {
+            myCombos = decoded
+        } else {
+            myCombos = Self.starterCombos
+        }
+    }
+
+    func addCombo(_ combo: Combo) {
+        myCombos.append(combo)
+        saveCombos()
+    }
+
+    func removeCombos(at offsets: IndexSet) {
+        myCombos.remove(atOffsets: offsets)
+        saveCombos()
+    }
+
+    private func saveCombos() {
+        if let data = try? JSONEncoder().encode(myCombos) {
+            defaults.set(data, forKey: Self.combosKey)
+        }
     }
 
     func workouts(for discipline: Discipline) -> [Workout] {

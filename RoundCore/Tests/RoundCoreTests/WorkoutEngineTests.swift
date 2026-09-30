@@ -89,6 +89,17 @@ final class WorkoutPlanTests: XCTestCase {
         }
     }
 
+    func testAPlanCanCallOnlyYourCombos() {
+        var w = workout()
+        w.comboSource = .mine
+        let mine = [Combo([.jab, .cross]), Combo([.leadHook, .bodyCross])]
+        let called = WorkoutPlan(workout: w, seed: 3, mine: mine).cues.compactMap { t -> Combo? in
+            if case .combo(let c) = t.cue { return c } else { return nil }
+        }
+        XCTAssertEqual(called.count, 16)
+        XCTAssertEqual(Set(called), Set(mine))
+    }
+
     func testTotalMatchesTheHomeScreen() {
         for w in Workout.defaults {
             XCTAssertEqual(WorkoutPlan(workout: w, seed: 0).duration, WorkoutPlan.getReady + Double(w.totalSeconds))

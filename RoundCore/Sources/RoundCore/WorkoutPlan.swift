@@ -43,10 +43,10 @@ public struct WorkoutPlan: Sendable {
     /// Get-ready included.
     public var duration: TimeInterval { segments.last?.end ?? 0 }
 
-    public init(workout input: Workout, seed: UInt64) {
+    public init(workout input: Workout, seed: UInt64, mine: [Combo] = []) {
         let workout = input.clamped()
         self.workout = workout
-        var generator = ComboGenerator(workout: workout, seed: seed)
+        var generator = ComboGenerator(workout: workout, mine: mine, seed: seed)
         var segments: [Segment] = []
         var cues: [TimedCue] = []
 

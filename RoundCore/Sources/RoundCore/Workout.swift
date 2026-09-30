@@ -42,8 +42,13 @@ public struct Workout: Codable, Sendable, Equatable, Identifiable {
     public var rest: Int
     public var intensity: Intensity
     public var callout: CalloutStyle
-    /// Mix slips and rolls into boxing combos.
+    /// Mix defense into boxing combos: slips, rolls, ducks, pulls and parries
+    /// mid-combo, and a pivot out at the end.
     public var defense: Bool
+    /// Turn some of punches 1–4 into body shots (1B–4B).
+    public var bodyShots: Bool
+    /// Where the round's combos come from.
+    public var comboSource: ComboSource
     /// The last ten seconds of a round become a count: one punch per second.
     public var punchCountdown: Bool
     /// Same, with kicks. Muay Thai only.
@@ -51,11 +56,38 @@ public struct Workout: Codable, Sendable, Equatable, Identifiable {
 
     public init(id: String, name: String, discipline: Discipline, rounds: Int, work: Int, rest: Int,
                 intensity: Intensity, callout: CalloutStyle = .names, defense: Bool = false,
+                bodyShots: Bool = false, comboSource: ComboSource = .generated,
                 punchCountdown: Bool = false, kickCountdown: Bool = false) {
         self.id = id; self.name = name; self.discipline = discipline
         self.rounds = rounds; self.work = work; self.rest = rest
         self.intensity = intensity; self.callout = callout; self.defense = defense
+        self.bodyShots = bodyShots; self.comboSource = comboSource
         self.punchCountdown = punchCountdown; self.kickCountdown = kickCountdown
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, discipline, rounds, work, rest, intensity, callout, defense
+        case bodyShots, comboSource, punchCountdown, kickCountdown
+    }
+
+    /// Fields added after the first release decode with a default, so a
+    /// workout saved by an older build still loads instead of the whole list
+    /// silently falling back to the defaults.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        discipline = try c.decode(Discipline.self, forKey: .discipline)
+        rounds = try c.decode(Int.self, forKey: .rounds)
+        work = try c.decode(Int.self, forKey: .work)
+        rest = try c.decode(Int.self, forKey: .rest)
+        intensity = try c.decode(Intensity.self, forKey: .intensity)
+        callout = try c.decodeIfPresent(CalloutStyle.self, forKey: .callout) ?? .names
+        defense = try c.decodeIfPresent(Bool.self, forKey: .defense) ?? false
+        bodyShots = try c.decodeIfPresent(Bool.self, forKey: .bodyShots) ?? false
+        comboSource = try c.decodeIfPresent(ComboSource.self, forKey: .comboSource) ?? .generated
+        punchCountdown = try c.decodeIfPresent(Bool.self, forKey: .punchCountdown) ?? false
+        kickCountdown = try c.decodeIfPresent(Bool.self, forKey: .kickCountdown) ?? false
     }
 
     // The ranges the watch's pickers offer. `clamped()` holds any stored
@@ -88,6 +120,15 @@ public struct Workout: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
+public enum ComboSource: String, Codable, Sendable, CaseIterable {
+    /// Built by `ComboGenerator` from the moves library.
+    case generated
+    /// Drawn from the combos you built yourself.
+    case mine
+
+    public var title: String { self == .generated ? "Generated" : "My combos" }
+}
+
 public enum CountdownDrill: String, Sendable, Equatable {
     case punches, kicks
     public var title: String { self == .punches ? "PUNCHES" : "KICKS" }
@@ -105,7 +146,7 @@ public extension Workout {
                 callout: .names, defense: false, punchCountdown: true),
         Workout(id: "creative-flow", name: "Creative Flow", discipline: .boxing,
                 rounds: 3, work: 120, rest: 30, intensity: .medium,
-                callout: .numbers, defense: true),
+                callout: .numbers, defense: true, bodyShots: true),
         Workout(id: "eight-limbs", name: "Eight Limbs", discipline: .muayThai,
                 rounds: 3, work: 180, rest: 60, intensity: .medium,
                 callout: .names, punchCountdown: true, kickCountdown: true),
