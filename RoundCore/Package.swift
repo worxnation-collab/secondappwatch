@@ -1,6 +1,6 @@
 // swift-tools-version:5.9
-// RoundCore is the whole game with no UI in it: the clock, the scoring, the
-// combo, and which haptic plays when. It is plain Foundation so `swift test`
+// RoundCore is the whole workout with no UI in it: the moves library, the
+// combo generator, the timeline, and which haptic plays when. It is plain Foundation so `swift test`
 // runs it anywhere (Linux CI included); the watch app is a thin SwiftUI shell
 // that turns `Pulse` values into WKHapticType.
 import PackageDescription

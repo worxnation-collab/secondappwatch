@@ -5,3 +5,4 @@ ComboClock.xcodeproj/
 DerivedData/
 *.xcuserstate
 App/Info.plist
+App/ComboClock.entitlements

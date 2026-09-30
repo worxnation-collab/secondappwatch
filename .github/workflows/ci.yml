@@ -1,7 +1,7 @@
 name: CI
 
 # Two proofs:
-#   1. RoundCore's tests (the clock, scoring, combo and haptic patterns) —
+#   1. RoundCore's tests (combo generation, duration math, the workout state machine, cue patterns),
 #      also run on Linux, so they're checked first and cheaply.
 #   2. The SwiftUI app compiles for the watchOS simulator, unsigned.
 

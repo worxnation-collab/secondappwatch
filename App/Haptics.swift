@@ -4,8 +4,9 @@ import RoundCore
 import WatchKit
 #endif
 
-/// The only file that touches the Taptic Engine. Everything about WHICH pulse
-/// plays WHEN is decided in RoundCore; this just plays the beats on time.
+/// The only file that touches the Taptic Engine. WHICH pulse plays WHEN is
+/// decided in RoundCore; this plays the beats on time. Inside a workout
+/// session the app keeps running with the wrist down, so these still land.
 enum Haptics {
     static func play(_ cues: [Cue]) {
         for cue in cues {
@@ -16,9 +17,6 @@ enum Haptics {
             }
         }
     }
-
-    /// A single tap outside the round's cues (the crown's arm click).
-    static func play(_ pulse: Pulse) { fire(pulse) }
 
     private static func fire(_ pulse: Pulse) {
         #if os(watchOS)
@@ -34,9 +32,9 @@ private extension Pulse {
         case .start: return .start
         case .click: return .click
         case .directionUp: return .directionUp
-        case .success: return .success
-        case .retry: return .retry
+        case .notification: return .notification
         case .stop: return .stop
+        case .success: return .success
         }
     }
 }

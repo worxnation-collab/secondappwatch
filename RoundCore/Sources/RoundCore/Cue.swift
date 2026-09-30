@@ -1,9 +1,9 @@
 import Foundation
 
-/// One haptic tap. The watch maps these 1:1 onto WKHapticType; keeping them
-/// here means the patterns are data the tests can read.
+/// One tap on the wrist. The watch maps these 1:1 onto WKHapticType; keeping
+/// them here makes every pattern data the tests can read.
 public enum Pulse: String, Sendable, Equatable, CaseIterable {
-    case start, click, directionUp, success, retry, stop
+    case start, click, directionUp, notification, stop, success
 }
 
 public struct Beat: Sendable, Equatable {
@@ -13,38 +13,46 @@ public struct Beat: Sendable, Equatable {
     public init(_ pulse: Pulse, at: TimeInterval) { self.pulse = pulse; self.at = at }
 }
 
-/// Something the round wants the wrist to feel.
+/// Something the workout wants the wrist to feel.
 public enum Cue: Sendable, Equatable {
-    case questionStart
-    /// The clock crossed a tick mark (5, 3, 2, 1 seconds left).
-    case tick(secondsLeft: Int)
-    /// First correct answer of a streak.
-    case correct
-    /// Second or later correct answer in a row — the combo you can COUNT.
-    case combo(level: Int)
-    /// A wrong answer or a timeout. Deliberately soft: a wrong answer here
-    /// teaches, it doesn't buzz at you.
-    case teach
-    case roundEnd
+    /// The last three seconds of the get-ready and of every rest.
+    case getSet(secondsLeft: Int)
+    case roundStart(round: Int)
+    case combo(Combo)
+    case tenSeconds
+    /// One strike of the countdown drill, counting down to 1.
+    case count(Int, CountdownDrill)
+    /// End of a round.
+    case bell(round: Int)
+    case done
 
-    /// Longest countable burst. Past five taps nobody is counting any more.
-    public static let maxComboTaps = 5
-    static let tapGap: TimeInterval = 0.11
+    /// Gap between the taps of a combo: quick enough to read as one phrase,
+    /// slow enough that four taps don't smear into a buzz.
+    public static let tapGap: TimeInterval = 0.14
 
     public var pattern: [Beat] {
         switch self {
-        case .questionStart: return [Beat(.start, at: 0)]
-        case .tick: return [Beat(.click, at: 0)]
-        case .correct: return [Beat(.success, at: 0)]
-        case .combo(let level):
-            // N quick taps for combo N, then a rising cue: you can feel your
-            // streak without looking at the screen.
-            let taps = min(max(level, 2), Cue.maxComboTaps)
-            var beats = (0..<taps).map { Beat(.click, at: Double($0) * Cue.tapGap) }
-            beats.append(Beat(.directionUp, at: Double(taps) * Cue.tapGap + 0.08))
+        case .getSet: return [Beat(.click, at: 0)]
+        case .roundStart: return [Beat(.start, at: 0)]
+        case .combo(let combo):
+            // One tap per move, then a rising cue that means "go".
+            var beats = combo.moves.indices.map { Beat(.click, at: Double($0) * Cue.tapGap) }
+            beats.append(Beat(.directionUp, at: Double(combo.moves.count) * Cue.tapGap + 0.06))
             return beats
-        case .teach: return [Beat(.retry, at: 0)]
-        case .roundEnd: return [Beat(.stop, at: 0)]
+        case .tenSeconds: return [Beat(.notification, at: 0)]
+        case .count: return [Beat(.click, at: 0)]
+        case .bell: return [Beat(.stop, at: 0)]
+        case .done: return [Beat(.success, at: 0.6)]
+        }
+    }
+
+    /// Structural cues change what phase you're in. After the app has been
+    /// asleep they still play when it catches up; a stale combo or tick does
+    /// not, because a tap for something that's already over means nothing.
+    public var isStructural: Bool {
+        switch self {
+        case .roundStart, .bell, .done: return true
+        case .getSet, .combo, .tenSeconds, .count: return false
         }
     }
 }

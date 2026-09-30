@@ -28,6 +28,18 @@ targets:
         WKApplication: true
         WKWatchOnly: true
         ITSAppUsesNonExemptEncryption: false
+        NSHealthShareUsageDescription: Combo Clock reads your heart rate and active energy to show them live during a round.
+        NSHealthUpdateUsageDescription: Combo Clock saves each session to Health as a Boxing or Martial Arts workout, with heart rate and active energy.
+        # A running HKWorkoutSession keeps the app alive with the wrist down,
+        # which is what lets the combo taps keep landing mid-round.
+        WKBackgroundModes:
+          - workout-processing
+    # Written by XcodeGen at generate time; HealthKit is the only capability.
+    entitlements:
+      path: App/ComboClock.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.versearcade.comboclock
