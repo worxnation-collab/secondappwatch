@@ -1,0 +1,39 @@
+name: CI
+
+# Two proofs:
+#   1. RoundCore's tests (the clock, scoring, combo and haptic patterns) —
+#      also run on Linux, so they're checked first and cheaply.
+#   2. The SwiftUI app compiles for the watchOS simulator, unsigned.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: RoundCore tests
+        working-directory: RoundCore
+        run: swift test
+
+  watch-app:
+    needs: core
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build for watchOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project ComboClock.xcodeproj \
+            -scheme ComboClock \
+            -destination 'generic/platform=watchOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO | tail -40

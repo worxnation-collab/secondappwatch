@@ -1,0 +1,55 @@
+# Codemagic: build, sign and upload Combo Clock to TestFlight. Start it by hand.
+#
+# ONE-TIME SETUP
+#   1. App Store Connect > Apps > "+" > New App, platform iOS (watch-only apps
+#      are filed under iOS), bundle id com.versearcade.comboclock. The API can't
+#      create an app record; bundle id, cert and profile are created below by
+#      fetch-signing-files --create.
+#   2. Codemagic: add this repo as an app. The App Store Connect integration is
+#      team-level (reuses "VerseArcade"); the "appstore" variable group holding
+#      CERTIFICATE_PRIVATE_KEY is per-app, so add it to this app too.
+workflows:
+  watch-comboclock:
+    name: Combo Clock — watchOS TestFlight
+    max_build_duration: 45
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: VerseArcade
+    environment:
+      groups:
+        - appstore
+      vars:
+        BUNDLE_ID: "com.versearcade.comboclock"
+      xcode: latest
+    scripts:
+      - name: RoundCore tests
+        script: cd RoundCore && swift test
+      - name: Generate Xcode project
+        script: |
+          brew install xcodegen
+          xcodegen generate
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          printf '%s' "$CERTIFICATE_PRIVATE_KEY" | openssl base64 -d -A > /tmp/cert_key.pem
+          openssl rsa -in /tmp/cert_key.pem -check -noout
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/cert_key.pem \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Build signed IPA
+        script: |
+          xcode-project build-ipa \
+            --project "ComboClock.xcodeproj" \
+            --scheme "ComboClock"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
